@@ -2,6 +2,9 @@ version = 1
 revision = 3
 requires-python = ">=3.9"
 
+[manifest]
+constraints = [{ name = "pywin32", marker = "sys_platform == 'win32'" }]
+
 [[package]]
 name = "pygame"
 version = "2.6.1"

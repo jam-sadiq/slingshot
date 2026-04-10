@@ -11,6 +11,7 @@
 # Originally prototype code that became the full game. Ported from Python 2 to
 # Python 3 by a later contributor. The game will eventually be ported to C++/SDL.
 
+import asyncio                      # ← NEW: needed for pygbag web export
 import pygame
 from pygame.locals import *
 import math
@@ -74,7 +75,7 @@ class Game:
         self.missile = Missile()
         self.missilesprite = pygame.sprite.RenderPlain((self.missile,))
 
-        # Current auto-zoom scale (universe units → screen pixels)
+        # Current auto-zoom scale (universe units -> screen pixels)
         self.current_scale = 1.0
 
         # All trails shown on screen (each trail is a list of points)
@@ -261,7 +262,7 @@ class Game:
 
     def create_particlesystem(self, pos, n, size):
         if Settings.PARTICLES:
-            nn = n // 2 if Settings.BOUNCE else n    # FIX: integer division
+            nn = n // 2 if Settings.BOUNCE else n
             for _ in range(nn):
                 self.particlesystem.add(Particle(pos, size))
 
@@ -295,7 +296,6 @@ class Game:
     # ------------------------------------------------------------------
 
     def draw(self):
-        # Determine the maximum extent of the missile trail from screen centre
         max_extent = [0, 0]
         if self.firing:
             for p in self.missile.trail:
@@ -306,19 +306,14 @@ class Game:
                 if ay > max_extent[1]:
                     max_extent[1] = ay
 
-        # Add margin so the missile never touches the edge
         max_extent = (
             max_extent[0] * (1 + Settings.AUTO_ZOOM_MARGIN),
             max_extent[1] * (1 + Settings.AUTO_ZOOM_MARGIN),
         )
-
-        # Minimum visible area is the full screen
         max_extent = (
             max(max_extent[0], Settings.SCREEN_CENTER[0]),
             max(max_extent[1], Settings.SCREEN_CENTER[1]),
         )
-
-        # Clip to universe size
         max_extent = (
             max(min(max_extent[0], Settings.UNIVERSE_SIZE[0] / 2),
                 -Settings.UNIVERSE_SIZE[0] / 2),
@@ -326,7 +321,6 @@ class Game:
                 -Settings.UNIVERSE_SIZE[1] / 2),
         )
 
-        # On game over, zoom to show the entire universe
         if self.game_over:
             max_extent = (
                 Settings.UNIVERSE_SIZE[0] / 2,
@@ -334,8 +328,6 @@ class Game:
             )
 
         ratio = Settings.SCREEN_SIZE[0] / Settings.SCREEN_SIZE[1]
-
-        # Expand max_extent to match the screen aspect ratio
         if max_extent[1] * ratio > max_extent[0]:
             max_extent = (max_extent[1] * ratio, max_extent[1])
         else:
@@ -348,7 +340,6 @@ class Game:
         zoom_speed = Settings.AUTO_ZOOM_SPEED * max(
             1 - self.zoom_hold / 30.0, 0.0)
 
-        # Smoothly interpolate scale (work in extent = 1/scale space)
         scale = 1.0 / (
             1.0 / desired_scale * zoom_speed
             + 1.0 / self.current_scale * (1 - zoom_speed)
@@ -386,18 +377,15 @@ class Game:
                    pos[1] - scaled.get_height() / 2)
             self.screen.blit(scaled, pos)
 
-        # Draw background cropped to visible area
         visible_background = self.background.subsurface(visible_rect)
         pygame.transform.scale(visible_background, Settings.SCREEN_SIZE,
                                self.screen)
 
-        # Draw a border around the normal-screen area
         x1, y1 = transform((0, 0))
         x2, y2 = transform((Settings.SCREEN_SIZE[0], Settings.SCREEN_SIZE[1]))
         pygame.draw.rect(self.screen, (150, 150, 150),
                          pygame.Rect(x1, y1, x2 - x1, y2 - y1), 1)
 
-        # Draw planets
         show_planets = False
         if not Settings.INVISIBLE:
             show_planets = True
@@ -414,9 +402,8 @@ class Game:
             for planet in self.planetsprites:
                 draw_sprite(planet)
 
-        # Draw old trails
         for trail in self.trails[:-1]:
-            pts = list(map(transform, trail))  # FIX: map() is lazy in Python 3
+            pts = list(map(transform, trail))
             if len(pts) > 1:
                 if Settings.OLD_TRAIL_WIDTH == 1:
                     pygame.draw.aalines(self.screen,
@@ -425,9 +412,8 @@ class Game:
                     pygame.draw.lines(self.screen, Settings.OLD_TRAIL_COLOR,
                                       False, pts, Settings.OLD_TRAIL_WIDTH)
 
-        # Draw current trail
         if len(self.missile.trail) > 1:
-            pts = list(map(transform, self.missile.trail))  # FIX: same
+            pts = list(map(transform, self.missile.trail))
             if Settings.CURRENT_TRAIL_WIDTH == 1:
                 pygame.draw.aalines(self.screen,
                                     Settings.CURRENT_TRAIL_COLOR, False, pts)
@@ -435,7 +421,6 @@ class Game:
                 pygame.draw.lines(self.screen, Settings.CURRENT_TRAIL_COLOR,
                                   False, pts, Settings.CURRENT_TRAIL_WIDTH)
 
-        # Draw players and missile
         draw_sprite(self.players[1])
         draw_sprite(self.players[2])
         if self.firing:
@@ -457,8 +442,7 @@ class Game:
                 rect = tmp.get_rect()
                 s = int((100 - self.show_round) * rect.h / 15)
                 tmp = pygame.transform.scale(
-                    tmp,
-                    (int(rect.w / rect.h * s), s))   # FIX: int casts required
+                    tmp, (int(rect.w / rect.h * s), s))
                 rect = tmp.get_rect()
                 rect.center = (399, 299)
                 self.screen.blit(tmp, rect.topleft)
@@ -499,8 +483,7 @@ class Game:
                 rect = tmp.get_rect()
                 s = int((100 - self.show_round) * rect.h / 25)
                 tmp = pygame.transform.scale(
-                    tmp,
-                    (int(rect.w / rect.h * s), s))   # FIX: int casts required
+                    tmp, (int(rect.w / rect.h * s), s))
                 rect = tmp.get_rect()
                 rect.center = (399, 299)
                 self.screen.blit(tmp, rect.topleft)
@@ -539,7 +522,7 @@ class Game:
         if self.menu is None:
             self.enable_key_repeat()
         self.firing = 0
-        self.zoom_hold = 45  # pause to show full trail after shot
+        self.zoom_hold = 45
 
         if self.players[1].attempts >= Settings.MAX_SHOTS:
             self.end_round()
@@ -564,7 +547,6 @@ class Game:
             self.toggle_menu()
         elif c == "Start":
             self.started = True
-            # Zoom in when the game starts (welcome → play transition)
             self.current_scale = (float(Settings.SCREEN_SIZE[0])
                                   / Settings.UNIVERSE_SIZE[0])
             self.zoom_hold = 30
@@ -727,70 +709,6 @@ class Game:
                              self.end_round_msg.get_rect(), 1)
 
     # ------------------------------------------------------------------
-    # Main loop
-    # ------------------------------------------------------------------
-
-    def run(self):
-        while not self.q:
-            self.clock.tick(Settings.FPS)
-
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    self.q = True
-                elif event.type == KEYDOWN:
-                    if event.key == K_ESCAPE:
-                        self.toggle_menu()
-
-                    if self.menu is None:
-                        mod = event.mod
-                        if mod in (4160, 64, 4224):
-                            p = Settings.POWER_STEP_SMALL
-                            a = Settings.ANGLE_STEP_SMALL
-                        elif mod in (4097, 1, 4098):
-                            p = Settings.POWER_STEP_LARGE
-                            a = Settings.ANGLE_STEP_LARGE
-                        elif mod in (4352, 20480, 4608):
-                            p = 0.2
-                            a = 0.05
-                        else:
-                            p = Settings.POWER_STEP_NORMAL
-                            a = Settings.ANGLE_STEP_NORMAL
-
-                        if not self.round_over:
-                            if event.key == K_UP:
-                                self.change_power(p)
-                            elif event.key == K_DOWN:
-                                self.change_power(-p)
-                            elif event.key == K_LEFT:
-                                self.change_angle(-a)
-                            elif event.key == K_RIGHT:
-                                self.change_angle(a)
-                        if event.key in (13, 32):   # Enter or Space
-                            if self.round_over:
-                                if self.round == Settings.MAX_ROUNDS:
-                                    self.set_menu(self.welcome_menu)
-                                self.round_init()
-                                self.started = False
-                            else:
-                                self.fire()
-                    else:
-                        if event.key == K_UP:
-                            self.menu.up()
-                        elif event.key == K_DOWN:
-                            self.menu.down()
-                        elif event.key == K_LEFT:
-                            self.menu.left()
-                        elif event.key == K_RIGHT:
-                            self.menu.right()
-                        elif event.key in (13, 32):
-                            self.menu.select()
-
-            self.update()
-            self.draw()
-
-        self.save_settings()
-
-    # ------------------------------------------------------------------
     # Settings persistence
     # ------------------------------------------------------------------
 
@@ -802,61 +720,79 @@ class Game:
         self.max_planets = Settings.MAX_PLANETS
         self.timeout = Settings.MAX_FLIGHT
         self.max_rounds = Settings.MAX_ROUNDS
-        return  # settings file loading disabled; use built-in defaults
-
-        # --- unreachable: kept for reference ---
-        path = os.path.expanduser("~") + "/.slingshot/settings"
-        if os.path.exists(path):
-            with open(path, "r") as f:    # FIX: open() instead of file()
-                for line in f:
-                    tokens = line.split()
-                    if not tokens:
-                        continue
-                    key = tokens[0]
-                    val = tokens[1] if len(tokens) > 1 else ""
-                    if key == "Bounce:" and val == "1":
-                        self.bounce = True
-                    elif key == "Fixed_Power:" and val == "1":
-                        self.fixed_power = True
-                    elif key == "Particles:" and val == "1":
-                        Settings.PARTICLES = True
-                    elif key == "Random:" and val == "1":
-                        self.random = True
-                    elif key == "Invisible:" and val == "1":
-                        self.invisible = True
-                    elif key == "Max_Planets:":
-                        self.max_planets = int(val)
-                    elif key == "Timeout:":
-                        self.timeout = int(val)
-                    elif key == "Rounds:":
-                        self.max_rounds = int(val)
 
     def save_settings(self):
-        return  # settings file saving disabled; use built-in defaults
-
-        # --- unreachable: kept for reference ---
-        path = os.path.expanduser("~") + "/.slingshot"
-        if not os.path.exists(path):
-            os.mkdir(path)
-        path += "/settings"
-        with open(path, "wt") as f:    # FIX: open() instead of file()
-            f.write("Bounce: %d\n" % int(self.bounce))
-            f.write("Fixed_Power: %d\n" % int(self.fixed_power))
-            f.write("Invisible: %d\n" % int(self.invisible))
-            f.write("Random: %d\n" % int(self.random))
-            f.write("Particles: %d\n" % int(Settings.PARTICLES))
-            f.write("Max_Planets: %d\n" % self.max_planets)
-            f.write("Timeout: %d\n" % self.timeout)
-            f.write("Rounds: %d\n" % self.max_rounds)
+        pass  # disabled for web compatibility
 
 
-def main():
+# ======================================================================
+# Entry point — async for pygbag (web) and normal desktop use
+# ======================================================================
+
+async def main():                               # ← CHANGED: now async
     path = os.path.expanduser("~") + "/.slingshot"
-    if not os.path.exists(path):
-        os.mkdir(path)
+    os.makedirs(path, exist_ok=True)
+
     game = Game()
-    game.run()
+
+    while not game.q:                           # ← CHANGED: loop moved here
+        game.clock.tick(Settings.FPS)
+
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                game.q = True
+            elif event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    game.toggle_menu()
+
+                if game.menu is None:
+                    mod = event.mod
+                    if mod in (4160, 64, 4224):
+                        p = Settings.POWER_STEP_SMALL
+                        a = Settings.ANGLE_STEP_SMALL
+                    elif mod in (4097, 1, 4098):
+                        p = Settings.POWER_STEP_LARGE
+                        a = Settings.ANGLE_STEP_LARGE
+                    elif mod in (4352, 20480, 4608):
+                        p = 0.2
+                        a = 0.05
+                    else:
+                        p = Settings.POWER_STEP_NORMAL
+                        a = Settings.ANGLE_STEP_NORMAL
+
+                    if not game.round_over:
+                        if event.key == K_UP:
+                            game.change_power(p)
+                        elif event.key == K_DOWN:
+                            game.change_power(-p)
+                        elif event.key == K_LEFT:
+                            game.change_angle(-a)
+                        elif event.key == K_RIGHT:
+                            game.change_angle(a)
+                    if event.key in (13, 32):
+                        if game.round_over:
+                            if game.round == Settings.MAX_ROUNDS:
+                                game.set_menu(game.welcome_menu)
+                            game.round_init()
+                            game.started = False
+                        else:
+                            game.fire()
+                else:
+                    if event.key == K_UP:
+                        game.menu.up()
+                    elif event.key == K_DOWN:
+                        game.menu.down()
+                    elif event.key == K_LEFT:
+                        game.menu.left()
+                    elif event.key == K_RIGHT:
+                        game.menu.right()
+                    elif event.key in (13, 32):
+                        game.menu.select()
+
+        game.update()
+        game.draw()
+
+        await asyncio.sleep(0)                  # ← KEY LINE: yields to browser each frame
 
 
-if __name__ == "__main__":
-    main()
+asyncio.run(main())                             # ← CHANGED: works for both desktop and pygbag
