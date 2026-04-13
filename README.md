@@ -2,7 +2,7 @@
 
 A two-player gravity-based space shooter written in Python with pygame.
 
-Originally written in 2007 by Jonathan Musther and Bart Mak. Ported to Python 3 by a later contributor.
+Originally written in 2007 by Jonathan Musther and Bart Mak and I received it from Hans Peter Bischof at RIT. Ported to Python 3 by a later contributor.
 
 ---
 
